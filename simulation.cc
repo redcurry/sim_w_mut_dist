@@ -29,6 +29,7 @@ struct organism
   double fitness;
   int generation;
   int mutations;
+  bool revertant;
 };
 
 
@@ -44,7 +45,8 @@ double mean_generation(vector<organism> const & pop);
 double mean_fitness(vector<organism> const & pop);
 double mean_mutations(vector<organism> const & pop);
 double max_fitness(vector<organism> const & pop);
-int count_revertants(vector<organism> const & pop);
+int count_revertants_by_inheritance(vector<organism> const & pop);
+int count_revertants_by_fitness(vector<organism> const & pop);
 vector<double> get_fitnesses(vector<organism> const & pop);
 vector<int> get_generations(vector<organism> const & pop);
 vector<int> get_mutations(vector<organism> const & pop);
@@ -56,6 +58,7 @@ int pick_next_position(vector<organism> const & pop);
 int pick_random_position();
 bool should_mutate();
 double calc_new_fitness(double fitness, vector<double> const & mut_dist);
+bool gained_reversion(organism org);
 
 // Random functions
 double rand_0_to_1();
@@ -124,14 +127,14 @@ vector<T> read_values(string const & path)
 
 vector<organism> create_population()
 {
-  return vector<organism>(N, (organism){INITIAL_FITNESS, 0, 0});
+  return vector<organism>(N, (organism){INITIAL_FITNESS, 0, 0, false});
 }
 
 
 void print_header()
 {
   cout << "Replicate MeanGeneration MeanFitness MaxFitness "
-    << "MeanMutations N_Revertants\n";
+    << "MeanMutations N_RevertantsByInheritance N_RevertantsByFitness\n";
 }
 
 
@@ -141,20 +144,18 @@ void replicate_next_organism(vector<organism> & pop,
   int parent_pos = pick_next_position(pop);
   int child_pos = pick_random_position();
 
-  double parent_fitness = pop[parent_pos].fitness;
+  organism parent = pop[parent_pos];
+  pop[child_pos] = parent;
 
   if (should_mutate())
   {
-    pop[child_pos].fitness = calc_new_fitness(parent_fitness, mut_dist);
-    pop[child_pos].mutations = pop[parent_pos].mutations + 1;
-  }
-  else
-  {
-    pop[child_pos].fitness = parent_fitness;
-    pop[child_pos].mutations = pop[parent_pos].mutations;
+    pop[child_pos].fitness = calc_new_fitness(parent.fitness, mut_dist);
+    pop[child_pos].mutations = parent.mutations + 1;
+    if (gained_reversion(pop[child_pos]))
+      pop[child_pos].revertant = true;
   }
 
-  pop[child_pos].generation = pop[parent_pos].generation + 1;
+  pop[child_pos].generation = parent.generation + 1;
 }
 
 
@@ -233,13 +234,20 @@ T random_choice(vector<T> list)
 }
 
 
+bool gained_reversion(organism org)
+{
+  return !org.revertant && org.fitness > REVERTANT_MIN_FIT;
+}
+
+
 void print_info(vector<organism> const & pop, int rep_num)
 {
   cout << rep_num << " " << mean_generation(pop) << " "
     << mean_fitness(pop) << " "
     << max_fitness(pop) << " "
     << mean_mutations(pop) << " "
-    << count_revertants(pop) << endl;
+    << count_revertants_by_inheritance(pop) << " "
+    << count_revertants_by_fitness(pop) << endl;
 }
 
 
@@ -303,10 +311,20 @@ vector<int> get_mutations(vector<organism> const & pop)
 }
 
 
-int count_revertants(vector<organism> const & pop)
+int count_revertants_by_inheritance(vector<organism> const & pop)
 {
   int sum = 0;
-  for(int i = 0; i < pop.size(); i++)
+  for (int i = 0; i < pop.size(); i++)
+    if (pop[i].revertant)
+      sum++;
+  return sum;
+}
+
+
+int count_revertants_by_fitness(vector<organism> const & pop)
+{
+  int sum = 0;
+  for (int i = 0; i < pop.size(); i++)
     if (pop[i].fitness > REVERTANT_MIN_FIT)
       sum++;
   return sum;
