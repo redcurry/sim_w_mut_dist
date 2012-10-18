@@ -28,6 +28,7 @@ struct organism
 {
   double fitness;
   int generation;
+  int mutations;
 };
 
 
@@ -41,10 +42,12 @@ void print_header();
 void print_info(vector<organism> const & pop, int rep_num);
 double mean_generation(vector<organism> const & pop);
 double mean_fitness(vector<organism> const & pop);
+double mean_mutations(vector<organism> const & pop);
 double max_fitness(vector<organism> const & pop);
 int count_revertants(vector<organism> const & pop);
 vector<double> get_fitnesses(vector<organism> const & pop);
 vector<int> get_generations(vector<organism> const & pop);
+vector<int> get_mutations(vector<organism> const & pop);
 
 // Reproduction functions
 void replicate_next_organism(vector<organism> & pop,
@@ -87,8 +90,8 @@ int main(int argc, char* argv[])
   vector<organism> pop = create_population();
   
   // Print out header only for the first replicate
-  // if (rep_num == 1)
-  //   print_header();
+  if (rep_num == 1)
+    print_header();
 
   for(int update = 0; update < UPDATES; update++)
   {
@@ -121,13 +124,14 @@ vector<T> read_values(string const & path)
 
 vector<organism> create_population()
 {
-  return vector<organism>(N, (organism){INITIAL_FITNESS, 0});
+  return vector<organism>(N, (organism){INITIAL_FITNESS, 0, 0});
 }
 
 
 void print_header()
 {
-  cout << "Replicate MeanGeneration MeanFitness MaxFitness N_Revertants\n";
+  cout << "Replicate MeanGeneration MeanFitness MaxFitness "
+    << "MeanMutations N_Revertants\n";
 }
 
 
@@ -140,11 +144,17 @@ void replicate_next_organism(vector<organism> & pop,
   double parent_fitness = pop[parent_pos].fitness;
 
   if (should_mutate())
+  {
     pop[child_pos].fitness = calc_new_fitness(parent_fitness, mut_dist);
+    pop[child_pos].mutations = pop[parent_pos].mutations + 1;
+  }
   else
-    pop[child_pos].fitness = pop[parent_pos].fitness;
+  {
+    pop[child_pos].fitness = parent_fitness;
+    pop[child_pos].mutations = pop[parent_pos].mutations;
+  }
 
-  pop[child_pos].generation++;
+  pop[child_pos].generation = pop[parent_pos].generation + 1;
 }
 
 
@@ -228,6 +238,7 @@ void print_info(vector<organism> const & pop, int rep_num)
   cout << rep_num << " " << mean_generation(pop) << " "
     << mean_fitness(pop) << " "
     << max_fitness(pop) << " "
+    << mean_mutations(pop) << " "
     << count_revertants(pop) << endl;
 }
 
@@ -274,6 +285,21 @@ T max(vector<T> const & list)
     if (list[i] > max)
       max = list[i];
   return max;
+}
+
+
+double mean_mutations(vector<organism> const & pop)
+{
+  return mean(get_mutations(pop));
+}
+
+
+vector<int> get_mutations(vector<organism> const & pop)
+{
+  vector<int> mutations;
+  for (int i = 0; i < pop.size(); i++)
+    mutations.push_back(pop[i].mutations);
+  return mutations;
 }
 
 
