@@ -1,5 +1,6 @@
 // Numeric simulation of evolving organisms where
-// the distribution of fitness effects is given by a file
+// the distribution of fitness effects is given by two files,
+// where the second one is turned on at a fitness of 0.9
 
 #include <string>
 #include <iostream>
@@ -17,6 +18,12 @@ using namespace std;
 // Relative to the ancestor, fitness of the organism
 // in which the mutational distribution is based on
 #define MUT_DIST_NEUTRAL_FIT 0.0765346
+
+// Second mutational distribution's "neutral" relative fitness
+#define MUT_DIST_NEUTRAL_FIT_2 0.9230778
+
+// Relative fitness above which to use the second mutational distribution
+#define SECOND_MUT_DIST_THRESHOLD 0.9
 
 #define INITIAL_FITNESS 0.5    // Initial fitness of entire population
 #define UPDATES 100000         // Number of replications to perform
@@ -53,11 +60,12 @@ vector<int> get_mutations(vector<organism> const & pop);
 
 // Reproduction functions
 void replicate_next_organism(vector<organism> & pop,
-  vector<double> const & mut_dist);
+  vector<double> const & mut_dist, vector<double> const & mut_dist_2);
 int pick_next_position(vector<organism> const & pop);
 int pick_random_position();
 bool should_mutate();
-double calc_new_fitness(double fitness, vector<double> const & mut_dist);
+double calc_new_fitness(double fitness, vector<double> const & mut_dist,
+  vector<double> const & mut_dist_2);
 bool gained_reversion(organism org);
 
 // Random functions
@@ -74,21 +82,24 @@ template<typename T> double mean(vector<T> const & list);
 
 int main(int argc, char* argv[])
 {
-  if (argc < 4)
+  if (argc < 5)
   {
-    cout << "Arguments: random_seed mut_dist_path rep_num" << endl;
+    cout << "Arguments: random_seed mut_dist_path mut_dist_2_path rep_num"
+      << endl;
     return EXIT_FAILURE;
   }
 
   // Initialize command-line arguments
   int random_seed = atoi(argv[1]);
   string mut_dist_path = string(argv[2]);
-  int rep_num = atoi(argv[3]);
+  string mut_dist_path_2 = string(argv[3]);
+  int rep_num = atoi(argv[4]);
 
   srand(random_seed);
 
-  // Load the mutational distribution
+  // Load the mutational distributions
   vector<double> const & mut_dist = read_values<double>(mut_dist_path);
+  vector<double> const & mut_dist_2 = read_values<double>(mut_dist_path_2);
 
   vector<organism> pop = create_population();
   
@@ -98,7 +109,7 @@ int main(int argc, char* argv[])
 
   for(int update = 0; update < UPDATES; update++)
   {
-    replicate_next_organism(pop, mut_dist);
+    replicate_next_organism(pop, mut_dist, mut_dist_2);
 
     if (update % 1000 == 0)
       print_info(pop, rep_num);
@@ -139,7 +150,7 @@ void print_header()
 
 
 void replicate_next_organism(vector<organism> & pop,
-  vector<double> const & mut_dist)
+  vector<double> const & mut_dist, vector<double> const & mut_dist_2)
 {
   int parent_pos = pick_next_position(pop);
   int child_pos = pick_random_position();
@@ -149,7 +160,8 @@ void replicate_next_organism(vector<organism> & pop,
 
   if (should_mutate())
   {
-    pop[child_pos].fitness = calc_new_fitness(parent.fitness, mut_dist);
+    pop[child_pos].fitness =
+      calc_new_fitness(parent.fitness, mut_dist, mut_dist_2);
     pop[child_pos].mutations = parent.mutations + 1;
     if (gained_reversion(pop[child_pos]))
       pop[child_pos].revertant = true;
@@ -215,15 +227,28 @@ bool should_mutate()
 }
 
 
-double calc_new_fitness(double fitness, vector<double> const & mut_dist)
+double calc_new_fitness(double fitness, vector<double> const & mut_dist,
+  vector<double> const & mut_dist_2)
 {
-  double mut_effect = random_choice(mut_dist);
+  double mut_effect;
+  double neutral_fitness;
 
-  if (mut_effect < MUT_DIST_NEUTRAL_FIT)
-    return fitness * mut_effect / MUT_DIST_NEUTRAL_FIT;
+  if (fitness < SECOND_MUT_DIST_THRESHOLD)
+  {
+    mut_effect = random_choice(mut_dist);
+    neutral_fitness = MUT_DIST_NEUTRAL_FIT;
+  }
   else
-    return fitness + (1 - fitness) * (mut_effect - MUT_DIST_NEUTRAL_FIT) /
-      (1 - MUT_DIST_NEUTRAL_FIT);
+  {
+    mut_effect = random_choice(mut_dist_2);
+    neutral_fitness = MUT_DIST_NEUTRAL_FIT_2;
+  }
+
+  if (mut_effect < neutral_fitness)
+    return fitness * mut_effect / neutral_fitness;
+  else
+    return fitness + (1 - fitness) * (mut_effect - neutral_fitness) /
+      (1 - neutral_fitness);
 }
 
 
